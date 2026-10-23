@@ -34,7 +34,9 @@ class WordValue:
 
 @dataclass(frozen=True, slots=True)
 class StringValue:
-    """A quoted string literal, decoded."""
+    """A quoted string literal, decoded: the text between the quotes with the v1 escapes \\\\ \\n \\t \\r \\" \\'
+    (vil-m8w). Any other backslash escape decodes to the escaped character itself (``\\q`` gives ``q``), as the rasl
+    lexer did."""
 
     kind: ClassVar[ValueKind] = ValueKind.STRING
     value: str
@@ -73,7 +75,7 @@ def value_of(syntax: Syntax, ref: ValueRef) -> Value:
     2**53 - 1 (the TypeScript package's safe-integer range, so both languages agree). Their meaning is the consumer's.
 
     Raises DiagnosticError E4001 (NON_INTEGER_BOUND), spanning the bad bound token, for any other bound;
-    NotImplementedError "unsupported value kind: <kind>" for strings and lists (until vil-9ze);
+    NotImplementedError "unsupported value kind: <kind>" for a kind the union does not have yet (lists, until vil-9ze);
     TypeError when ``ref`` is not a WORD/STRING token index or a slice/list node of ``syntax``.
     """
     if isinstance(ref, Node):
@@ -94,8 +96,18 @@ def _token_value(syntax: Syntax, index: int) -> Value:
     if token.kind is TokenKind.WORD:
         return WordValue(token.text, token.span)
     if token.kind is TokenKind.STRING:
-        raise NotImplementedError("unsupported value kind: string")
+        return StringValue(_decode_string(token.text), token.span)
     raise TypeError(f"not a value: a {token.kind} token")
+
+
+# Backslash escapes with their own meaning; any other ``\x`` (``\\``, ``\"``, ``\'`` among them) decodes to ``x``.
+_ESCAPES = {"n": "\n", "t": "\t", "r": "\r"}
+_ESCAPE = re.compile(r"\\(.)", re.DOTALL)
+
+
+def _decode_string(text: str) -> str:
+    """The text between a STRING token's quotes, escapes decoded (see StringValue). One escape is one code point."""
+    return _ESCAPE.sub(lambda m: _ESCAPES.get(m[1], m[1]), text[1:-1])
 
 
 _W = TokenKind.WORD

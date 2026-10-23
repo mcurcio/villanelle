@@ -4,10 +4,11 @@ The TypeScript and Python parsers must produce these files byte for byte from th
 
 ## Files
 
-- Inputs: `conformance/*.json`, each a JSON array of `{"name": ..., "src": ...}` cases.
-  `tracer.json` holds the tracer cases (vil-g7n.1.1).
-- Expected output: one file per case, `conformance/expected/<name>.json`.
-  So far only the `tracer-*` cases have expected files.
+- Inputs: `conformance/*.json`, each a JSON array of `{"name": ..., "src": ...}` cases. A name is unique
+  across all of them. `cases.json` and `extra.json` hold the general and recovery cases, `depth.json` the long
+  and deeply nested inputs, `edge.json` the alphabet-edge inputs (characters at the edges of what each token
+  kind accepts), and `tracer.json` the tracer cases (vil-g7n.1.1).
+- Expected output: one file per case, `conformance/expected/<name>.json`, for every case.
 
 ## Content
 

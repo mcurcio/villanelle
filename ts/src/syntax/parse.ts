@@ -8,8 +8,9 @@ import { CharStreams, CommonTokenStream } from "antlr4";
 import { DiagnosticCode, type IDiagnostic } from "../diagnostics.js";
 import VillanelleLexer from "../gen/VillanelleLexer.js";
 import VillanelleParser from "../gen/VillanelleParser.js";
-import type { ISourcePosition, ISourceSpan } from "../span.js";
-import type { ISyntax } from "./cst.js";
+import type { ISourcePosition } from "../span.js";
+import { type INode, type ISyntax, NodeKind, spanOf } from "./cst.js";
+import { type IRawDiagnostic, installRecovery, messageOf, nestingOverflow } from "./recovery.js";
 import { type IToken, TokenKind } from "./tokens.js";
 import { type IAntlrToken, type IAntlrTree, toCst } from "./walk.js";
 
@@ -31,21 +32,9 @@ interface IAntlrTokenStream {
   fill(): void;
 }
 
-/**
- * An ANTLR error listener. antlr4's typings do not export ErrorListener, and the runtime calls all four methods
- * (the three report* ones during full-context prediction), so a listener implements every one.
- */
-interface IAntlrErrorListener {
-  syntaxError(recognizer: unknown, offending: IAntlrToken | null, line: number, column: number, message: string): void;
-  reportAmbiguity(): void;
-  reportAttemptingFullContext(): void;
-  reportContextSensitivity(): void;
-}
-
 /** The recognizer surface the adapter uses; the lexer's and parser's inherited typings are incomplete. */
 interface IAntlrRecognizer {
   removeErrorListeners(): void;
-  addErrorListener(listener: IAntlrErrorListener): void;
 }
 
 interface IAntlrParser extends IAntlrRecognizer {
@@ -79,35 +68,6 @@ function toTokens(antlrTokens: readonly IAntlrToken[]): IToken[] {
   return tokens;
 }
 
-function codeFor(token: IToken | undefined, index: number): DiagnosticCode {
-  if (token?.kind === TokenKind.BadChar || (token?.kind === TokenKind.Bom && index > 0)) {
-    return DiagnosticCode.UnexpectedCharacter;
-  }
-  if (token?.kind === TokenKind.UnterminatedString) return DiagnosticCode.UnterminatedString;
-  return DiagnosticCode.UnexpectedToken;
-}
-
-/** Reports each syntax error as our diagnostic, located by the offending token. */
-class DiagnosticListener implements IAntlrErrorListener {
-  readonly diagnostics: IDiagnostic[] = [];
-
-  constructor(
-    private readonly tokens: readonly IToken[],
-    private readonly endOfText: ISourceSpan,
-  ) {}
-
-  syntaxError(_recognizer: unknown, offending: IAntlrToken | null, _line: number, _column: number, message: string): void {
-    const index = offending?.tokenIndex ?? -1;
-    const token = offending === null || offending.type === EOF ? undefined : this.tokens[index];
-    this.diagnostics.push({ code: codeFor(token, index), message, span: token?.span ?? this.endOfText });
-  }
-
-  /** Ambiguity reports are diagnostics for grammar authors, not errors; tools/check.sh proves there are none. */
-  reportAmbiguity(): void {}
-  reportAttemptingFullContext(): void {}
-  reportContextSensitivity(): void {}
-}
-
 /**
  * Parse one text. Synchronous, pure and total: it never throws for any input string, and never reads files.
  * Errors are reported in `diagnostics`; the tree still covers every token.
@@ -123,12 +83,28 @@ export function parse(text: string): ISyntax {
   const antlrStream = stream as unknown as IAntlrTokenStream;
   antlrStream.fill();
   const tokens = toTokens(antlrStream.tokens);
-  const end = tokens.at(-1)?.span.end ?? ORIGIN;
+  const n = tokens.length;
 
-  const parser = new VillanelleParser(stream as unknown as ConstructorParameters<typeof VillanelleParser>[0]) as unknown as IAntlrParser;
-  const listener = new DiagnosticListener(tokens, { start: end, end });
-  parser.removeErrorListeners();
-  parser.addErrorListener(listener);
-  const root = toCst(parser.document());
-  return { tokens, root, diagnostics: listener.diagnostics };
+  // The depth guard runs first: deep enough nesting would overflow the call stack of the recursive parser.
+  const tooDeep = nestingOverflow(tokens.map((t) => t.kind));
+  if (tooDeep !== undefined) {
+    const root: INode = { kind: NodeKind.Document, start: 0, end: n, children: [{ kind: NodeKind.Error, start: 0, end: n, children: [] }] };
+    const code = DiagnosticCode.NestingTooDeep;
+    return located(tokens, root, [{ code, range: { start: tooDeep, end: tooDeep + 1 }, message: messageOf(code) }]);
+  }
+
+  const parser = new VillanelleParser(stream as unknown as ConstructorParameters<typeof VillanelleParser>[0]);
+  const raw: IRawDiagnostic[] = [];
+  // With recovery installed the parser reports nothing to listeners; drop the default console listener anyway.
+  (parser as unknown as IAntlrRecognizer).removeErrorListeners();
+  installRecovery(parser, (diagnostic) => raw.push(diagnostic));
+  const root = toCst((parser as unknown as IAntlrParser).document());
+  return located(tokens, root, raw);
+}
+
+/** The syntax result, with each token-range diagnostic turned into a source span (the one place that does). */
+function located(tokens: readonly IToken[], root: INode, raw: readonly IRawDiagnostic[]): ISyntax {
+  const unlocated: ISyntax = { tokens, root, diagnostics: [] };
+  const diagnostics: IDiagnostic[] = raw.map((d) => ({ code: d.code, message: d.message, span: spanOf(unlocated, d.range) }));
+  return { tokens, root, diagnostics };
 }

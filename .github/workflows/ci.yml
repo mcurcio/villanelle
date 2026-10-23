@@ -1,0 +1,144 @@
+# Checks on every push and pull request; on a push to main that passes them, the release job runs
+# semantic-release (.releaserc.json). Releases are dry-run until the owner sets the repository variable
+# RELEASE_ENABLED to 'true' (owner, 2026-10-23: "Dry-run until I enable it"). In dry-run the job computes the
+# next version, builds both packages and uploads them as a workflow artifact; it never tags or releases.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# Exact tool versions, one place each. Actions are pinned by full commit sha (tag in the comment).
+env:
+  NODE_VERSION: 24.22.1
+  JAVA_VERSION: 21.0.13+9
+  UV_VERSION: 0.13.5
+  BISON_APT_VERSION: 2:3.8.2+dfsg-1build2
+
+jobs:
+  grammar:
+    name: Grammar soundness (tools/check.sh)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install bison
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends --allow-downgrades "bison=$BISON_APT_VERSION"
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: bash tools/check.sh
+
+  ts:
+    name: TypeScript (Node 24)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - run: corepack pnpm install --frozen-lockfile
+      # Each script regenerates the parser first (tools/gen.sh ts).
+      - run: corepack pnpm test
+      - run: corepack pnpm typecheck
+      - run: corepack pnpm lint
+      - run: corepack pnpm build
+
+  py:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [3.11.17, 3.13.17]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
+    defaults:
+      run:
+        working-directory: py
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
+      # conftest.py regenerates the parser first (tools/gen.sh py); test_build.py runs uv build.
+      - run: uv run --locked pytest
+      - run: uv run --locked ruff check
+      - run: uv run --locked ruff format --check
+      - run: uv run --locked mypy
+
+  release:
+    name: Release (semantic-release)
+    needs: [grammar, ts, py]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    # contents: write is needed in dry-run too: semantic-release always checks push access (git push --dry-run).
+    # Comments, labels and failure issues are off in .releaserc.json, so no issues or pull-requests scope.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: corepack pnpm install --frozen-lockfile
+      - run: corepack pnpm -C ts install --frozen-lockfile
+      - name: semantic-release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_ENABLED: ${{ vars.RELEASE_ENABLED }}
+        run: |
+          if [ "$RELEASE_ENABLED" = true ]; then
+            corepack pnpm exec semantic-release
+          else
+            echo "::notice::RELEASE_ENABLED is not 'true': dry-run, no tag or release"
+            corepack pnpm exec semantic-release --dry-run
+          fi
+      # Dry-run only: semantic-release skips its prepare step (the build), so build here with the computed version.
+      - name: Build the packages (dry-run)
+        if: vars.RELEASE_ENABLED != 'true' && steps.release.outputs.version != ''
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: bash .github/release-build.sh "$VERSION"
+      - name: Upload the packages (dry-run)
+        if: vars.RELEASE_ENABLED != 'true' && steps.release.outputs.version != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: villanelle-${{ steps.release.outputs.version }}
+          path: dist/release/
+          if-no-files-found: error

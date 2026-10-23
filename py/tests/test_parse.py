@@ -54,7 +54,7 @@ def test_document_node_covers_leading_and_trailing_whitespace() -> None:
 def test_reports_empty_slice_as_one_located_diagnostic() -> None:
     syntax = parse("connect foo[:];")
     assert len(syntax.diagnostics) == 1
-    assert syntax.diagnostics[0].code is DiagnosticCode.UNEXPECTED_TOKEN
+    assert syntax.diagnostics[0].code is DiagnosticCode.BAD_SLICE
     assert syntax.diagnostics[0].span == SourceSpan(pos(13, 0, 13), pos(14, 0, 14))
     assert text_of(syntax, syntax.root) == "connect foo[:];"
 
@@ -68,7 +68,7 @@ def test_codes_lexical_errors_by_the_offending_token() -> None:
 
 def test_locates_unexpected_end_of_input_at_the_end_of_the_text() -> None:
     syntax = parse("a {\n  b")
-    assert syntax.diagnostics[0].code is DiagnosticCode.UNEXPECTED_TOKEN
+    assert syntax.diagnostics[0].code is DiagnosticCode.EXPECTED_CLOSING_BRACE
     assert syntax.diagnostics[0].span == SourceSpan(pos(7, 1, 3), pos(7, 1, 3))
 
 

@@ -127,16 +127,16 @@ describe("parseDocument", () => {
   it("skips error nodes, keeps the directives around them, and never throws on broken input", () => {
     const text = "a {\n b;\n : x;\n c;\n}\nd;\n";
     const doc = parseDocument(text);
-    expect(doc.syntax.diagnostics.length).toBeGreaterThan(0);
+    expect(doc.syntax.diagnostics.map((d) => d.code)).toEqual(["E2001"]);
     const errors = (node: INode): number =>
       node.children.reduce((n, child) => n + errors(child), node.kind === NodeKind.Error ? 1 : 0);
-    expect(errors(doc.syntax.root)).toBeGreaterThan(0);
+    expect(errors(doc.syntax.root)).toBe(1);
     const all: string[] = [];
     walkDirectives(doc, (d) => all.push(d.name));
-    // The block keeps `b`; recovery closes it at the error and the directives after it stay in the document.
-    expect(names(doc.children)).toEqual(["a", "x", "c"]);
-    expect(names(doc.children.at(0)?.body ?? [])).toEqual(["b"]);
-    expect(all).toEqual(["a", "b", "x", "c"]);
+    // The bad statement `: x;` is one error node: the block keeps `b` and `c`, and `d` follows the block.
+    expect(names(doc.children)).toEqual(["a", "d"]);
+    expect(names(doc.children.at(0)?.body ?? [])).toEqual(["b", "c"]);
+    expect(all).toEqual(["a", "b", "c", "d"]);
     for (const broken of ["a {", '"', "}", "a [", "\u0001", 'a "b\nc;']) {
       const brokenDoc = parseDocument(broken);
       expect(brokenDoc.syntax.diagnostics.length).toBeGreaterThan(0);

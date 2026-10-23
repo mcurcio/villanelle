@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- M1 skeleton (vil-g7n.1): the slice that fills the bodies deletes this line. */
 /**
  * The "villanelle/browser" entry: fetch-based I/O edges.
  */
 
+import { hasGlob } from "./graph/glob.js";
 import type { DocumentLoader, IDocumentWriter } from "./graph/io.js";
 
 /** Options for createFetchWriter. */
@@ -18,10 +18,22 @@ export interface IFetchWriterOptions {
  * no documents); a non-2xx response returns no documents.
  */
 export function createFetchLoader(fetchImpl: typeof fetch): DocumentLoader {
-  throw new Error("not implemented");
+  return async (spec, context) => {
+    if (hasGlob(spec)) return [];
+    const url = new URL(spec, context.parentPath).toString();
+    const response = await fetchImpl(url);
+    if (!response.ok) return [];
+    return [{ source: await response.text(), resolvedPath: url }];
+  };
 }
 
 /** A writer that sends the text to resolvedPath with fetch. */
 export function createFetchWriter(fetchImpl: typeof fetch, options?: IFetchWriterOptions): IDocumentWriter {
-  throw new Error("not implemented");
+  const method = options?.method ?? "PUT";
+  const contentType = options?.contentType ?? "text/plain";
+  return {
+    async write(resolvedPath, source) {
+      await fetchImpl(resolvedPath, { method, headers: { "content-type": contentType }, body: source });
+    },
+  };
 }

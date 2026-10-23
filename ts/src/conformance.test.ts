@@ -14,6 +14,9 @@ interface ICase {
   readonly src: string;
 }
 
+/** Every corpus file; each case's name is unique across them. */
+const FILES = ["cases.json", "extra.json", "depth.json", "edge.json", "tracer.json"];
+
 function load(file: string): ICase[] {
   return JSON.parse(readFileSync(new URL(file, CONFORMANCE), "utf8")) as ICase[];
 }
@@ -38,7 +41,23 @@ function format(syntax: ISyntax): string {
   return `${json}\n`;
 }
 
-describe.each(["cases.json", "extra.json", "tracer.json"])("lossless CST over %s", (file) => {
+/**
+ * Each token index is either directly in one node's range and in no child, or inside exactly one child; children
+ * are in order, do not overlap and lie inside their parent.
+ */
+function checkCoverage(node: INode): void {
+  let at = node.start;
+  for (const child of node.children) {
+    expect(child.start, `${child.kind} child starts inside ${node.kind}`).toBeGreaterThanOrEqual(at);
+    expect(child.end).toBeGreaterThanOrEqual(child.start);
+    expect(child.end, `${child.kind} child ends inside ${node.kind}`).toBeLessThanOrEqual(node.end);
+    if (child.kind === "error") expect(child.children).toEqual([]);
+    checkCoverage(child);
+    at = child.end;
+  }
+}
+
+describe.each(FILES)("lossless CST over %s", (file) => {
   it.each(load(file).map((c) => [c.name, c] as const))("%s", (_name, { src }) => {
     const syntax = parse(src);
     expect(textOf(syntax, syntax.root)).toBe(src);
@@ -51,11 +70,12 @@ describe.each(["cases.json", "extra.json", "tracer.json"])("lossless CST over %s
       offset = token.span.end.offset;
     }
     expect(offset).toBe(src.length);
+    checkCoverage(syntax.root);
   });
 });
 
-describe("expected output (format v0)", () => {
-  it.each(load("tracer.json").map((c) => [c.name, c] as const))("%s", (name, { src }) => {
+describe.each(FILES)("expected output (format v0) for %s", (corpus) => {
+  it.each(load(corpus).map((c) => [c.name, c] as const))("%s", (name, { src }) => {
     const file = new URL(`${name}.json`, EXPECTED);
     const actual = format(parse(src));
     if (process.env.VILLANELLE_WRITE_EXPECTED === "1") {

@@ -1,0 +1,1 @@
+{"tokens":[["WORD","a"],["NEWLINE","\n"],["LBRACE","{"],["NEWLINE","\n"],["SPACE"," "],["WORD","b"],["SPACE"," "],["WORD","1"],["NEWLINE","\n"],["RBRACE","}"],["NEWLINE","\n"],["WORD","c"],["SPACE"," "],["WORD","2"],["NEWLINE","\n"]],"cst":["document",0,15,[["directive",0,2,[]],["error",2,10,[]],["directive",11,15,[]]]],"diagnostics":[["E2008",1,0]]}

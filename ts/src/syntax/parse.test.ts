@@ -47,7 +47,7 @@ describe("parse", () => {
     const syntax = parse("connect foo[:];");
     expect(syntax.diagnostics).toHaveLength(1);
     expect(syntax.diagnostics[0]).toMatchObject({
-      code: DiagnosticCode.UnexpectedToken,
+      code: DiagnosticCode.BadSlice,
       span: { start: { offset: 13, line: 0, column: 13 }, end: { offset: 14, line: 0, column: 14 } },
     });
     expect(textOf(syntax, syntax.root)).toBe("connect foo[:];");
@@ -63,7 +63,7 @@ describe("parse", () => {
   it("locates an unexpected end of input at the end of the text", () => {
     const syntax = parse("a {\n  b");
     expect(syntax.diagnostics[0]).toMatchObject({
-      code: DiagnosticCode.UnexpectedToken,
+      code: DiagnosticCode.ExpectedClosingBrace,
       span: { start: { offset: 7, line: 1, column: 3 }, end: { offset: 7, line: 1, column: 3 } },
     });
   });

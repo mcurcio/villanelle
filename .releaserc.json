@@ -1,0 +1,27 @@
+{
+  "branches": ["main"],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/exec",
+      {
+        "verifyReleaseCmd": "if [ -n \"$GITHUB_OUTPUT\" ]; then echo \"version=${nextRelease.version}\" >> \"$GITHUB_OUTPUT\"; fi",
+        "prepareCmd": "bash .github/release-build.sh ${nextRelease.version}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          { "path": "dist/release/*.tgz", "label": "npm package (${nextRelease.gitTag})" },
+          { "path": "dist/release/*.whl", "label": "Python wheel (${nextRelease.gitTag})" },
+          { "path": "dist/release/*.tar.gz", "label": "Python sdist (${nextRelease.gitTag})" }
+        ],
+        "successCommentCondition": false,
+        "failCommentCondition": false,
+        "releasedLabels": false
+      }
+    ]
+  ]
+}

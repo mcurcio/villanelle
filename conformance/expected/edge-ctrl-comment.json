@@ -1,0 +1,1 @@
+{"tokens":[["WORD","x"],["SPACE"," "],["COMMENT","# a"],["BAD_CHAR","\u0001"],["WORD","b"],["NEWLINE","\n"],["WORD","y"],["SPACE"," "],["WORD","1"]],"cst":["document",0,9,[["error",0,6,[]],["directive",6,9,[]]]],"diagnostics":[["E1003",0,5]]}

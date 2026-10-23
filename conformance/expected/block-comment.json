@@ -1,0 +1,1 @@
+{"tokens":[["WORD","server"],["SPACE"," "],["LBRACE","{"],["NEWLINE","\n"],["SPACE","  "],["WORD","listen"],["SPACE"," "],["WORD","80"],["SPACE"," "],["COMMENT","# c"],["NEWLINE","\n"],["RBRACE","}"],["NEWLINE","\n"]],"cst":["document",0,13,[["directive",0,12,[["block",2,12,[["directive",5,11,[]]]]]]]],"diagnostics":[]}

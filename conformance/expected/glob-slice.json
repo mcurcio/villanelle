@@ -1,0 +1,1 @@
+{"tokens":[["WORD","x"],["SPACE"," "],["WORD","a*"],["LBRACK","["],["WORD","0"],["COLON",":"],["WORD","2"],["RBRACK","]"]],"cst":["document",0,8,[["directive",0,8,[["slice",2,8,[]]]]]],"diagnostics":[]}

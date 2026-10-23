@@ -1,0 +1,1 @@
+{"tokens":[["WORD","x"],["SPACE"," "],["BAD_CHAR","\ud800"],["SPACE"," "],["WORD","y"]],"cst":["document",0,5,[["error",0,5,[]]]],"diagnostics":[["E1003",0,2]]}

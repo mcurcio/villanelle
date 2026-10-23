@@ -11,6 +11,7 @@ from villanelle import (
     SliceValue,
     SourcePosition,
     SourceSpan,
+    StringValue,
     Syntax,
     TokenKind,
     ValueKind,
@@ -116,15 +117,52 @@ def test_gives_a_word_for_a_word_token_index() -> None:
     assert value.kind is ValueKind.WORD
 
 
-def test_raises_unsupported_value_kind_for_strings_and_lists() -> None:
-    string = parse('connect "x";')
-    with pytest.raises(NotImplementedError, match=r"^unsupported value kind: string$"):
-        value_of(string, 2)
+def test_raises_unsupported_value_kind_for_lists() -> None:
     lst = parse("connect [1, 2];")
     node = lst.root.children[0].children[0]
     assert node.kind is NodeKind.LIST
     with pytest.raises(NotImplementedError, match=r"^unsupported value kind: list$"):
         value_of(lst, node)
+
+
+@pytest.mark.parametrize(
+    ("literal", "decoded"),
+    [
+        ('"plain"', "plain"),
+        ("'single'", "single"),
+        ('"a\\\\b"', "a\\b"),
+        ('"a\\nb"', "a\nb"),
+        ('"a\\tb"', "a\tb"),
+        ('"a\\rb"', "a\rb"),
+        ('"a\\"b"', 'a"b'),
+        ("'a\\'b'", "a'b"),
+        ('"a\\\'b"', "a'b"),
+        ('""', ""),
+    ],
+)
+def test_gives_a_string_its_quotes_stripped_and_each_v1_escape_decoded(literal: str, decoded: str) -> None:
+    syntax = parse(f"connect {literal};")
+    assert syntax.diagnostics == ()
+    value = value_of(syntax, 2)
+    assert value == StringValue(decoded, syntax.tokens[2].span)
+    assert value.kind is ValueKind.STRING
+
+
+@pytest.mark.parametrize(
+    ("literal", "decoded"), [('"\\q"', "q"), ('"\\\\n"', "\\n"), ('"x\\\U0001f600y"', "x\U0001f600y")]
+)
+def test_decodes_an_unknown_escape_to_the_escaped_character_astral_ones_whole(literal: str, decoded: str) -> None:
+    syntax = parse(f"connect {literal};")
+    assert syntax.diagnostics == ()
+    assert value_of(syntax, 2) == StringValue(decoded, syntax.tokens[2].span)
+
+
+def test_raises_type_error_for_an_unterminated_string_token() -> None:
+    syntax = parse('connect "abc')
+    index = next(i for i, t in enumerate(syntax.tokens) if t.kind is TokenKind.UNTERMINATED_STRING)
+    assert index > 0
+    with pytest.raises(TypeError):
+        value_of(syntax, index)
 
 
 def test_raises_type_error_for_a_ref_that_is_not_a_value() -> None:

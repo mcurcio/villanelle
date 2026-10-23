@@ -17,6 +17,37 @@ and Python parsers. It began as `@rasl/config` in mcurcio/rasl, and rasl will co
   plans are in `design/plans/`. Code carried over from rasl is in `reference/`
   (see `reference/README.md`).
 
+## Build and test
+
+Run the checks for every package you change, from the repository root:
+
+```bash
+bash tools/check.sh                       # after any grammar change; must exit 0
+corepack pnpm -C ts install               # ts/: then test, typecheck and lint
+corepack pnpm -C ts test
+cd py && uv run pytest                    # py/: also ruff check, ruff format --check, mypy
+```
+
+`ts/README.md` and `py/README.md` give the full lists. CI (`.github/workflows/ci.yml`) runs all
+of them on every push and pull request.
+
+Pins:
+
+| What | Version | Where it is set |
+|---|---|---|
+| Node | 24. Run `nvm use` first: a shell's default Node may be older | `.nvmrc`; `engines` in `ts/package.json` |
+| pnpm | 12.15.0, through corepack | `packageManager` in `ts/package.json` and `package.json` |
+| Python | 3.11 or later; 3.13 by default; CI runs 3.11 and 3.13 | `requires-python` in `py/pyproject.toml`; `py/.python-version` |
+| Java | 11 or later (CI uses 21) | `tools/gen.sh` refuses older |
+| ANTLR | 4.13.2: the jar (sha256-pinned) and both runtimes | `tools/gen.sh`; `ts/package.json`; `py/pyproject.toml` |
+| CI tools | exact versions of Node, Java, uv and bison | the `env` block of `.github/workflows/ci.yml` |
+
+Generated parser code is never committed (owner, 2026-10-23: "Don't commit the generated code, just
+the source"). `tools/gen.sh ts|py` writes it to the git-ignored `ts/src/gen/` and
+`py/src/villanelle/_gen/`; the TS package scripts and `py/tests/conftest.py` run it first, so every
+build and test regenerates. It caches the ANTLR jar in `$ANTLR_JAR_DIR` (default
+`~/.cache/antlr`); on the owner's Mac, set `ANTLR_JAR_DIR=/Volumes/Dock/Home/.cache/antlr`.
+
 ## Landing work
 
 - Push directly to `main`; do not open pull requests yet (owner, 2026-10-22: "Don't open PRs in

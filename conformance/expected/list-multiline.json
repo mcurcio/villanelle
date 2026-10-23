@@ -1,0 +1,1 @@
+{"tokens":[["WORD","x"],["SPACE"," "],["LBRACK","["],["WORD","a"],["COMMA",","],["NEWLINE","\n"],["SPACE","  "],["WORD","b"],["COMMA",","],["SPACE"," "],["COMMENT","# c"],["NEWLINE","\n"],["NEWLINE","\n"],["SPACE","  "],["WORD","c"],["COMMA",","],["NEWLINE","\n"],["RBRACK","]"],["NEWLINE","\n"]],"cst":["document",0,19,[["directive",0,19,[["list",2,18,[]]]]]],"diagnostics":[]}

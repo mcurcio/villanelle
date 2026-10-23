@@ -6,14 +6,14 @@ from __future__ import annotations
 from typing import Any
 
 from antlr4 import CommonTokenStream, InputStream
-from antlr4.error.ErrorListener import ErrorListener
 
 from villanelle._gen.VillanelleLexer import VillanelleLexer
 from villanelle._gen.VillanelleParser import VillanelleParser
 from villanelle.diagnostics import Diagnostic, DiagnosticCode
 from villanelle.span import SourcePosition, SourceSpan
+from villanelle.syntax._recovery import RawDiagnostic, install_recovery, message_of, nesting_overflow
 from villanelle.syntax._walk import to_cst
-from villanelle.syntax.cst import Syntax
+from villanelle.syntax.cst import Node, NodeKind, Syntax, span_of
 from villanelle.syntax.tokens import Token, TokenKind
 
 _EOF = -1
@@ -66,32 +66,6 @@ def _to_tokens(antlr_tokens: list[Any]) -> tuple[Token, ...]:
     return tuple(tokens)
 
 
-def _code_for(token: Token | None, index: int) -> DiagnosticCode:
-    if token is not None and (token.kind is TokenKind.BAD_CHAR or (token.kind is TokenKind.BOM and index > 0)):
-        return DiagnosticCode.UNEXPECTED_CHARACTER
-    if token is not None and token.kind is TokenKind.UNTERMINATED_STRING:
-        return DiagnosticCode.UNTERMINATED_STRING
-    return DiagnosticCode.UNEXPECTED_TOKEN
-
-
-class _DiagnosticListener(ErrorListener):  # type: ignore[misc]
-    """Reports each syntax error as our diagnostic, located by the offending token. The ambiguity reports stay the
-    base class's no-ops: they are for grammar authors, and tools/check.sh proves there are none."""
-
-    def __init__(self, tokens: tuple[Token, ...], end_of_text: SourceSpan) -> None:
-        self.diagnostics: list[Diagnostic] = []
-        self._tokens = tokens
-        self._end_of_text = end_of_text
-
-    def syntaxError(  # ANTLR calls it by this name
-        self, recognizer: Any, offending: Any, line: int, column: int, msg: str, e: Any
-    ) -> None:
-        index: int = offending.tokenIndex if offending is not None else -1
-        token = None if offending is None or offending.type == _EOF else self._tokens[index]
-        span = token.span if token is not None else self._end_of_text
-        self.diagnostics.append(Diagnostic(_code_for(token, index), msg, span))
-
-
 def parse(text: str) -> Syntax:
     """Parse one text. Pure and total: it never raises for any input string, and never reads files.
     Errors are reported in ``diagnostics``; the tree still covers every token."""
@@ -102,11 +76,26 @@ def parse(text: str) -> Syntax:
     stream = CommonTokenStream(lexer)
     stream.fill()
     tokens = _to_tokens(stream.tokens)
-    end = tokens[-1].span.end if tokens else _ORIGIN
+    n = len(tokens)
+
+    # The depth guard runs first: deep enough nesting would overflow the stack of the recursive parser.
+    too_deep = nesting_overflow([t.kind for t in tokens])
+    if too_deep is not None:
+        root = Node(NodeKind.DOCUMENT, 0, n, (Node(NodeKind.ERROR, 0, n, ()),))
+        code = DiagnosticCode.NESTING_TOO_DEEP
+        return _located(tokens, root, [RawDiagnostic(code, too_deep, too_deep + 1, message_of(code))])
 
     parser = VillanelleParser(stream)
-    listener = _DiagnosticListener(tokens, SourceSpan(end, end))
+    raw: list[RawDiagnostic] = []
+    # With recovery installed the parser reports nothing to listeners; drop the default console listener anyway.
     parser.removeErrorListeners()
-    parser.addErrorListener(listener)
+    install_recovery(parser, raw.append)
     root = to_cst(parser.document())
-    return Syntax(tokens, root, tuple(listener.diagnostics))
+    return _located(tokens, root, raw)
+
+
+def _located(tokens: tuple[Token, ...], root: Node, raw: list[RawDiagnostic]) -> Syntax:
+    """The syntax result, with each token-range diagnostic turned into a source span (the one place that does)."""
+    unlocated = Syntax(tokens, root, ())
+    diagnostics = tuple(Diagnostic(d.code, d.message, span_of(unlocated, d)) for d in raw)
+    return Syntax(tokens, root, diagnostics)

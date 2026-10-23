@@ -1,0 +1,126 @@
+[
+{
+"name": "edge-only-bom",
+"src": "\ufeff"
+},
+{
+"name": "edge-bom-twice",
+"src": "\ufeff\ufeffx"
+},
+{
+"name": "edge-bom-str",
+"src": "x \"\ufeff\""
+},
+{
+"name": "edge-bom-comment",
+"src": "x # \ufeff\ny 1"
+},
+{
+"name": "edge-only-newlines",
+"src": "\n\n"
+},
+{
+"name": "edge-nbsp-bare",
+"src": "x \u00a0y"
+},
+{
+"name": "edge-nbsp-str",
+"src": "x \"\u00a0\""
+},
+{
+"name": "edge-u0080-bare",
+"src": "x \u0080"
+},
+{
+"name": "edge-uffff-str",
+"src": "x \"\uffff\""
+},
+{
+"name": "edge-astral-comment",
+"src": "x # \ud83d\ude00\ny 1"
+},
+{
+"name": "edge-tab-str",
+"src": "x \"\t\""
+},
+{
+"name": "edge-tab-comment",
+"src": "x #\ta\ny 1"
+},
+{
+"name": "edge-ctrl-str",
+"src": "x \"a\u0001b\"\ny 1"
+},
+{
+"name": "edge-ctrl-comment",
+"src": "x # a\u0001b\ny 1"
+},
+{
+"name": "edge-del-str",
+"src": "x \"a\u007fb\"\ny 1"
+},
+{
+"name": "edge-del-comment",
+"src": "x # a\u007fb\ny 1"
+},
+{
+"name": "edge-del-bare",
+"src": "x \u007f"
+},
+{
+"name": "edge-formfeed",
+"src": "x\fy"
+},
+{
+"name": "edge-vtab",
+"src": "x \u000by"
+},
+{
+"name": "edge-cr-in-comment",
+"src": "x # a\rb\ny 1"
+},
+{
+"name": "edge-crlf-comment",
+"src": "x # a\r\ny 1"
+},
+{
+"name": "edge-backslash-bare",
+"src": "x \\"
+},
+{
+"name": "edge-escape-quote",
+"src": "x \"a\\\"b\" 'c\\'d'"
+},
+{
+"name": "edge-escape-eof",
+"src": "x \"a\\"
+},
+{
+"name": "edge-quotes-mixed",
+"src": "x 'a\"b' \"c'd\""
+},
+{
+"name": "edge-word-chars",
+"src": "x a.b/c@d*e?f:g#h+i-j _z ./ @a"
+},
+{
+"name": "edge-word-digit-start",
+"src": "x 0-a 9z -1 -"
+},
+{
+"name": "edge-digit-colon",
+"src": "x 1:2"
+},
+{
+"name": "edge-hash-word-start",
+"src": "x #a b\ny 1"
+},
+{
+"name": "edge-plus-start",
+"src": "x +a"
+},
+{
+"name": "edge-tilde",
+"src": "x ~"
+}
+]

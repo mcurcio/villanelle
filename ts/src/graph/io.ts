@@ -1,8 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars -- M1 skeleton (vil-g7n.1): the slice that fills the bodies deletes this line. */
 /**
  * The I/O ports of the include graph. The core performs no I/O; effects live in loaders and writers supplied by
  * the caller (./node and ./browser give ready-made ones).
  */
+
+import { hasGlob } from "./glob.js";
 
 /** Where an include spec is being resolved from. */
 export interface ILoadContext {
@@ -35,5 +36,18 @@ export interface IDocumentWriter {
  * a glob goes to every loader and the results are merged, the last one for a `resolvedPath` winning.
  */
 export function composeLoaders(loaders: readonly DocumentLoader[]): DocumentLoader {
-  throw new Error("not implemented");
+  return async (spec, context) => {
+    if (!hasGlob(spec)) {
+      for (const loader of loaders) {
+        const found = await loader(spec, context);
+        if (found.length > 0) return found;
+      }
+      return [];
+    }
+    const byPath = new Map<string, ILoadedDocument>();
+    for (const loader of loaders) {
+      for (const document of await loader(spec, context)) byPath.set(document.resolvedPath, document);
+    }
+    return [...byPath.values()];
+  };
 }
